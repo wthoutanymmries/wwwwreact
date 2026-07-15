@@ -1,25 +1,4 @@
-// const element = {
-//   type: 'h1',
-//   props: {
-//     title: 'foo',
-//     children: 'Hello',
-//   },
-// }
-
-// const container = document.getElementById('root')
-
-// if (!container) {
-//   throw new Error('Container not found')
-// }
-
-// const node = document.createElement(element.type)
-// node['title'] = element.props.title
-
-// const text = document.createTextNode('')
-// text['nodeValue'] = element.props.children
-
-// node.appendChild(text)
-// container.appendChild(node)
+// https://pomb.us/build-your-own-react/
 
 function createTextElement(text) {
   return {
@@ -76,17 +55,33 @@ function updateDom(dom, prevProps, nextProps) {
     dom.addEventListener(eventType, nextProps[name]);
   });
 }
+function commitDeletion(fiber, domParent) {
+  if (fiber.dom) {
+    domParent.removeChild(fiber.dom);
+  } else {
+    // when removing a node we also need to keep going
+    // until we find a child with a DOM node
+    commitDeletion(fiber.child, domParent);
+  }
+}
 function commitWork(fiber) {
   if (!fiber) {
     return;
   }
-  const domParent = fiber.parent.dom;
+
+  // to find the parent of a DOM node we’ll need to go up the fiber tree
+  // until we find a fiber with a DOM node
+  let domParentFiber = fiber.parent;
+  while (!domParentFiber.dom) {
+    domParentFiber = domParentFiber.parent;
+  }
+  const domParent = domParentFiber.dom;
   if (fiber.effectTag === 'PLACEMENT' && fiber.dom != null) {
     domParent.appendChild(fiber.dom);
   } else if (fiber.effectTag === 'UPDATE' && fiber.dom != null) {
     updateDom(fiber.dom, fiber.alternate.props, fiber.props);
   } else if (fiber.effectTag === 'DELETION') {
-    domParent.removeChild(fiber.dom);
+    commitDeletion(fiber, domParent);
   }
   commitWork(fiber.child);
   commitWork(fiber.sibling);
@@ -172,12 +167,23 @@ function reconcileChildren(wipFiber, elements) {
     index++;
   }
 }
-function performUnitOfWork(fiber) {
+function updateFunctionComponent(fiber) {
+  const children = [fiber.type(fiber.props)];
+  reconcileChildren(fiber, children);
+}
+function updateHostComponent(fiber) {
   if (!fiber.dom) {
     fiber.dom = createDom(fiber);
   }
-  const elements = fiber.props.children;
-  reconcileChildren(fiber, elements);
+  reconcileChildren(fiber, fiber.props.children);
+}
+function performUnitOfWork(fiber) {
+  const isFunctionComponent = fiber.type instanceof Function;
+  if (isFunctionComponent) {
+    updateFunctionComponent(fiber);
+  } else {
+    updateHostComponent(fiber);
+  }
   if (fiber.child) {
     return fiber.child;
   }
@@ -206,37 +212,31 @@ const ww = {
   render
 };
 
-// const element = ww.createElement(
-//   'div',
-//   { id: 'foo' },
-//   ww.createElement('a', null, 'bar'),
-//   ww.createElement('b')
-// )
-// console.dir(ww.createElement('div', null, element), { depth: null })
-
 // /** @jsx ww.createElement */
-// const element = (
-//   <div style='background: aqua'>
-//     <h1>Hello World</h1>
-//     <h1>Hello World</h1>
-//     <h1>Hello World</h1>
-//     <h1>Hello World</h1>
-//     <h1>Hello World</h1>
-//     <h1>Hello World</h1>
-//   </div>
-// )
-/** @jsx ww.createElement */
-const container = document.getElementById('root');
-// ww.render(element, container)
+// const container = document.getElementById('root')
 
-const updateValue = e => {
-  rerender(e.target.value);
-};
-const rerender = value => {
-  const element = ww.createElement("div", null, ww.createElement("input", {
-    onInput: updateValue,
-    value: value
-  }), ww.createElement("h2", null, "Hello ", value));
-  ww.render(element, container);
-};
-rerender('World');
+// const updateValue = e => {
+//   rerender(e.target.value)
+// }
+
+// const rerender = value => {
+//   const element = (
+//     <div>
+//       <input onInput={updateValue} value={value} />
+//       <h2>Hello {value}</h2>
+//     </div>
+//   )
+//   ww.render(element, container)
+// }
+
+// rerender('World')
+
+/** @jsx ww.createElement */
+function App(props) {
+  return ww.createElement("h1", null, "Hi ", props.name);
+}
+const element = ww.createElement(App, {
+  name: "foo"
+});
+const container = document.getElementById('root');
+ww.render(element, container);
