@@ -1,0 +1,16 @@
+{
+  "name": "wwwwreact",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minimal JSX renderer demo?",
+  "scripts": {
+    "build": "babel src/index.js --out-file public/index.js --presets @babel/preset-react",
+    "start": "npm run build && serve public -l 3333"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.28.0",
+    "@babel/core": "^7.28.0",
+    "@babel/preset-react": "^7.28.0",
+    "serve": "^14.2.4"
+  }
+}
