@@ -40,6 +40,8 @@ let nextUnitOfWork = null
 let currentRoot = null
 let wipRoot = null
 let deletions = null
+let wipFiber = null
+let hookIndex = null
 
 const isEvent = key => key.startsWith('on')
 const isProperty = key =>
@@ -238,7 +240,51 @@ function reconcileChildren(wipFiber, elements) {
   }
 }
 
+function useState(initial) {
+  const oldHook =
+    wipFiber.alternate &&
+    wipFiber.alternate.hooks &&
+    wipFiber.alternate.hooks[hookIndex]
+  const hook = {
+    state: oldHook ? oldHook.state : initial,
+    queue: [],
+  }
+
+  // We run the actions the next time we are rendering the component,
+  // we get all the actions from the old hook queue,
+  // and then apply them one by one to the new hook state,
+  // so when we return the state it’s updated
+  const actions = oldHook ? oldHook.queue : []
+  actions.forEach(action => {
+    hook.state = action(hook.state)
+  })
+
+  const setState = action => {
+    hook.queue.push(action)
+    // set a new work in progress root as the next unit of work
+    // so the work loop can start a new render phase
+    wipRoot = {
+      dom: currentRoot.dom,
+      props: currentRoot.props,
+      alternate: currentRoot,
+    }
+    nextUnitOfWork = wipRoot
+    deletions = []
+  }
+
+  wipFiber.hooks.push(hook)
+  hookIndex++
+  return [hook.state, setState]
+}
+
 function updateFunctionComponent(fiber) {
+  // We need to initialize some global variables
+  // before calling the function component
+  // so we can use them inside of the useState function
+  wipFiber = fiber
+  hookIndex = 0
+  wipFiber.hooks = []
+
   const children = [fiber.type(fiber.props)]
   reconcileChildren(fiber, children)
 }
@@ -296,33 +342,19 @@ requestIdleCallback(workLoop)
 const ww = {
   createElement,
   render,
+  useState,
 }
-
-// /** @jsx ww.createElement */
-// const container = document.getElementById('root')
-
-// const updateValue = e => {
-//   rerender(e.target.value)
-// }
-
-// const rerender = value => {
-//   const element = (
-//     <div>
-//       <input onInput={updateValue} value={value} />
-//       <h2>Hello {value}</h2>
-//     </div>
-//   )
-//   ww.render(element, container)
-// }
-
-// rerender('World')
 
 /** @jsx ww.createElement */
-function App(props) {
-  return <h1>Hi {props.name}</h1>
+function Counter() {
+  const [state, setState] = ww.useState(1)
+  return (
+    <h1 onClick={() => setState(c => c + 1)}>
+      Count: {state}
+    </h1>
+  )
 }
 
-const element = <App name='foo' />
+const element = <Counter />
 const container = document.getElementById('root')
-
 ww.render(element, container)
